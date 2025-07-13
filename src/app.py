@@ -2,8 +2,8 @@ from fastapi import FastAPI, Request
 from dotenv import dotenv_values
 from pymongo import MongoClient
 from bson.objectid import ObjectId
-from Resume import Resume_Reader
-from Ranking_System import model
+from src.Resume import Resume_Reader
+from src.Ranking_System import model
 import threading
 from concurrent.futures import ThreadPoolExecutor
 import uvicorn      #type: ignore
