@@ -1,0 +1,8 @@
+src/.env
+/venv
+/src/__pycache__
+/src/LinkedIn/__pycache__
+/src/Resume/CV
+/src/Github/__pycache__
+/src/Resume/__pycache__
+/src/Ranking_System/__pycache__
