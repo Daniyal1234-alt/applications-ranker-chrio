@@ -11,6 +11,9 @@ import requests  # Add this to your imports
 
 GITHUB_SCRAPER_URL = "http://ec2-16-170-253-54.eu-north-1.compute.amazonaws.com:8000/github/scrape"
 app = FastAPI()
+@app.get("/")
+def read_root():
+    return {"message": "Dr. Faisal API is live!"}
 MAX_WORKERS = 10
 
 # Config
