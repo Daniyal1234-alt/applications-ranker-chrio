@@ -122,48 +122,56 @@ def get_ranked_list(job_post: dict, applicant_list: list) -> list:
         print(f"❌ LLM failed: {e}")
         return []
 def store_ranked_applicants(post_id, ranked_list):
-    client = MongoClient(config["MONGO_URI"])
-    db = client[config["DB_NAME"]]
-    ranked_collection = db["Ranked_Applicants"]
+    try:
+        client = MongoClient(config["MONGO_URI"])
+        db = client[config["DB_NAME"]]
+        ranked_collection = db["Ranked_Applicants"]
 
-    formatted = {
-        "PostId": str(post_id),
-        "List": [
-            {
-                "ApplicantId": item.get("applicantID"),
-                "Score": item.get("Score"),
-                "Rank": idx + 1,
-                "Note": item.get("Justification/Recommendation Note", "")
-            }
-            for idx, item in enumerate(ranked_list)
-        ]
-    }
-    ranked_collection.insert_one(formatted)
-    print(f"✅ Stored ranked applicants for post {post_id}")
+        formatted = {
+            "PostId": str(post_id),
+            "List": [
+                {
+                    "ApplicantId": item.get("applicantID"),
+                    "Score": item.get("Score"),
+                    "Rank": idx + 1,
+                    "Note": item.get("Justification/Recommendation Note", "")
+                }
+                for idx, item in enumerate(ranked_list)
+            ]
+        }
+        ranked_collection.insert_one(formatted)
+        print(f"✅ Stored ranked applicants for post {post_id}")
+    except Exception as e:
+        print(f"❌ Error storing ranked applicants: {e}")
+        raise
 
 def get_top_candidates_for_post(post_id):
-    client = MongoClient(config["MONGO_URI"])
-    db = client[config["DB_NAME"]]
-    processed_collection = db["Resume_Info"]
+    try:
+        client = MongoClient(config["MONGO_URI"])
+        db = client[config["DB_NAME"]]
+        processed_collection = db["Resume_Info"]
 
-    applicants = list(processed_collection.find({"user.postId": ObjectId(post_id)}))
-    minimal_applicants = []
-    for a in applicants:
-        data = a.get("user", {})
-        minimal_applicants.append({
-            "applicantID": str(data.get("_id")),
-            "applicantName": data.get("name", ""),
-            "skills": a.get("skills", []),
-            "matched_skills": a.get("skill_matched", []),
-            "about": a.get("about", ""),
-            "education": a.get("resume_info", {}).get("education", []),
-            "experience": a.get("resume_info", {}).get("experience", []),
-            "projects": a.get("resume_info", {}).get("projects", []),
-        })
+        applicants = list(processed_collection.find({"user.postId": ObjectId(post_id)}))
+        minimal_applicants = []
+        for a in applicants:
+            data = a.get("user", {})
+            minimal_applicants.append({
+                "applicantID": str(data.get("_id")),
+                "applicantName": data.get("name", ""),
+                "skills": a.get("skills", []),
+                "matched_skills": a.get("skill_matched", []),
+                "about": a.get("about", ""),
+                "education": a.get("resume_info", {}).get("education", []),
+                "experience": a.get("resume_info", {}).get("experience", []),
+                "projects": a.get("resume_info", {}).get("projects", []),
+            })
 
-    job_post = db['posts'].find_one({'_id': ObjectId(post_id)})
-    ranked_list = get_ranked_list(job_post, minimal_applicants)
-    top_10 = ranked_list[:10] if len(ranked_list) >= 10 else ranked_list
+        job_post = db['posts'].find_one({'_id': ObjectId(post_id)})
+        ranked_list = get_ranked_list(job_post, minimal_applicants)
+        top_10 = ranked_list[:10] if len(ranked_list) >= 10 else ranked_list
 
-    store_ranked_applicants(post_id, top_10)
-    return top_10
+        store_ranked_applicants(post_id, top_10)
+        return top_10
+    except Exception as e:
+        print(f"❌ Error getting top candidates: {e}")
+        return []

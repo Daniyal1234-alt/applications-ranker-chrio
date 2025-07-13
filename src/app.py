@@ -175,66 +175,89 @@ def process_single_user(args):
 
     print(f"🏁 Finished processing {user['_id']}")
 
-from src.Ranking_System import model
-# Endpoint to trigger the process
+from fastapi import status
+from fastapi.responses import JSONResponse
+
 @app.post("/process_post")
 async def process_post(request: Request):
-    data = await request.json()
-    post_id = data.get("postId")
+    try:
+        data = await request.json()
+        post_id = data.get("postId")
 
-    print("📨 POST /process_post called")
-    if not post_id:
-        print("❌ Missing postId in request body")
-        return {"error": "postId is required"}
+        print("📨 POST /process_post called")
+        if not post_id:
+            print("❌ Missing postId in request body")
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={"error": "postId is required"}
+            )
 
-    print(f"📥 Received post ID: {post_id}")
-    job_post = fetch_job_post(post_id)
-    if not job_post:
-        return {"error": "Invalid postId or post not found"}
+        print(f"📥 Received post ID: {post_id}")
+        job_post = fetch_job_post(post_id)
+        if not job_post:
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={"error": "Invalid postId or post not found"}
+            )
 
-    info = fetch_user_data(post_id)
-    users = info['users']
-    apps = info['applications']
-    regs = info['registrations']
+        info = fetch_user_data(post_id)
+        users = info['users']
+        apps = info['applications']
+        regs = info['registrations']
 
-    if not users or not regs:
-        print("⚠️ No applicants or registration data found.")
-        return {"message": "No applicants found for this post."}
+        if not users or not regs:
+            print("⚠️ No applicants or registration data found.")
+            return JSONResponse(
+                status_code=status.HTTP_200_OK,
+                content={"message": "No applicants found for this post."}
+            )
 
-    print("🚦 Starting applicant processing...")
-    with ThreadPoolExecutor(max_workers=min(MAX_WORKERS, len(regs))) as executor:
-        executor.map(process_single_user, [(u, apps, regs) for u in users])
+        print("🚦 Starting applicant processing...")
+        with ThreadPoolExecutor(max_workers=min(MAX_WORKERS, len(regs))) as executor:
+            executor.map(process_single_user, [(u, apps, regs) for u in users])
 
-    print("✅ All applicants processed.")
+        print("✅ All applicants processed.")
 
-    # Get ranked list using model.py logic
-    # Prepare minimal applicant list for ranking
-    minimal_applicants = []
-    for user_id, data in applicants.items():
-        user = data.get("user", {})
-        minimal_applicants.append({
-            "applicantID": str(user.get("_id")),
-            "applicantName": user.get("name", ""),
-            "skills": data.get("skills", []),
-            "matched_skills": data.get("skill_matched", []),
-            "about": data.get("about", ""),
-            "education": data.get("resume_info", {}).get("education", []),
-            "experience": data.get("resume_info", {}).get("experience", []),
-            "projects": data.get("resume_info", {}).get("projects", []),
-        })
+        minimal_applicants = []
+        for user_id, data in applicants.items():
+            user = data.get("user", {})
+            minimal_applicants.append({
+                "applicantID": str(user.get("_id")),
+                "applicantName": user.get("name", ""),
+                "skills": data.get("skills", []),
+                "matched_skills": data.get("skill_matched", []),
+                "about": data.get("about", ""),
+                "education": data.get("resume_info", {}).get("education", []),
+                "experience": data.get("resume_info", {}).get("experience", []),
+                "projects": data.get("resume_info", {}).get("projects", []),
+            })
 
-    ranked_list = model.get_ranked_list(job_post, minimal_applicants)
-    top_10 = ranked_list[:10] if len(ranked_list) >= 10 else ranked_list
+        ranked_list = model.get_ranked_list(job_post, minimal_applicants)
+        top_10 = ranked_list[:10] if len(ranked_list) >= 10 else ranked_list
 
-    # Store ranked applicants in DB
-    model.store_ranked_applicants(post_id, top_10)
+        try:
+            model.store_ranked_applicants(post_id, top_10)
+        except Exception as e:
+            print(f"❌ Failed to store ranked applicants: {e}")
+            return JSONResponse(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content={"error": "Failed to store ranked applicants"}
+            )
 
-    return {
-        "job_post": job_post,
-        "applicants_processed": len(applicants),
-        "ranked_applicants": top_10
-    }
-
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "job_post": job_post,
+                "applicants_processed": len(applicants),
+                "ranked_applicants": top_10
+            }
+        )
+    except Exception as e:
+        print(f"❌ Internal server error: {e}")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": "Internal server error"}
+        )
 
 if __name__ == "__main__":
     print("🚀 Starting local API server on http://localhost:8000")
