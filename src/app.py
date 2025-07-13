@@ -14,7 +14,9 @@ app = FastAPI()
 MAX_WORKERS = 10
 
 # Config
-config = dotenv_values("src\\.env")
+import os
+config = dotenv_values(os.path.join("src", ".env"))
+
 mongo_uri = config.get("MONGO_URI")
 db_name = config.get("DB_NAME")
 
